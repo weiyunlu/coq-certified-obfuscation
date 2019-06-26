@@ -84,7 +84,7 @@ Example factorial_3:
   fact_nonzero / { X --> 3 } \\
     { X --> 3; Z --> 3; Y --> 1; Y --> 3; Z --> 2; Y --> 6; Z --> 1 }.
   Proof.
-    unfold fact_in_coq.
+    unfold fact_nonzero.
     apply E_Seq with { X --> 3 ; Z --> 3 }.
     - apply E_Ass.  reflexivity.
     - apply E_Seq with { X --> 3 ; Z --> 3 ; Y --> 1 }.
@@ -183,7 +183,7 @@ Example factorial_3_opaque_trans_constant:
 Lemma opaque_taut : forall x : nat, x * x + x + x + 1 = (x + 1) * (x + 1).
 Proof.
   intro x.
-  rewrite -> mult_plus_distr_l.   rewrite -> mult_plus_distr_r.  omega.
+  rewrite -> mult_plus_distr_l.  rewrite -> mult_plus_distr_r.  omega.
 Qed.
 
 Lemma opaque_taut' : forall x : nat, beq_nat (x * x + x + x + 1) ((x + 1) * (x + 1)) = true.
@@ -285,14 +285,7 @@ Lemma fact_dist : forall x : nat, fact x * (x + 1) = fact (x + 1).
     - simpl.  rewrite <- Nat.add_1_r.  rewrite <- IHx.  simpl.
       repeat rewrite mult_plus_distr_r.  repeat rewrite mult_plus_distr_l.  simpl.
       repeat rewrite plus_0_r.  repeat rewrite mult_1_r.  repeat rewrite mult_assoc.
-      repeat rewrite plus_assoc.
-      assert (H1: fact x * x = x * fact x).
-        { rewrite mult_comm.  auto. }
-      repeat rewrite H1.
-      assert (H2: forall y z : nat, y * z + z + z + y * z * y + y * z + y * z =
-        y * z + z + y * z * y + y * z + y * z + z).
-        { intros.   omega. }
-      apply H2.
+      repeat rewrite plus_assoc.  rewrite mult_comm.  omega.
    Qed.
 
 Ltac disp :=
@@ -305,8 +298,6 @@ Example factorial_3_hoare:
   {{ as_x 3 }} fact_program {{ as_y 6 }}.
   Proof.
     unfold as_x, as_y, fact_program.
-    apply hoare_consequence_post with (fun st : state => st Y = fact 3).  2: disp.
-    apply hoare_consequence_pre with (fun st : state => 1 = 1 /\ st X = 3).  2: disp.
     apply hoare_consequence_pre with (fun st : state => 1 = fact 0 /\ st X = 3).  2: disp.
     eapply hoare_seq.  eapply hoare_seq.
     apply hoare_consequence_post with
@@ -377,24 +368,25 @@ Example factorial_all_hoare: forall xo,
   {{ as_x xo }} fact_program {{ as_y (fact xo) }}.
   Proof.
     intros.  unfold as_x, as_y, fact_program.
-    apply hoare_consequence_post with (fun st : state => st Y = fact xo).  2: disp.
-    apply hoare_consequence_pre with (fun st : state => 1 = 1 /\ st X = xo).  2: disp.
     apply hoare_consequence_pre with (fun st : state => 1 = fact 0 /\ st X = xo).  2: disp.
     eapply hoare_seq.  eapply hoare_seq.
     apply hoare_consequence_post with
-      (fun st : state => (fun st0 : state => st0 Y = fact (st0 Z) /\ st0 X = xo) st /\ ~ bassn (! (Z = X)) st).
+      (fun st : state => (fun st0 : state => st0 Y = fact (st0 Z) /\ st0 X = xo) st /\
+         ~ bassn (! (Z = X)) st).
     apply hoare_while.
     3: apply hoare_asgn.
-    3: apply hoare_consequence_post with (fun st : state => st Y = fact 0 /\ st X = xo).  4: disp.
-    3: apply hoare_consequence_pre with ((fun st : state => st Y = fact 0 /\ st X = xo) [Y |-> 1]).
+    3: apply hoare_consequence_post with (fun st : state => st Y = fact 0 /\ st X = xo).  
+    4: disp.
+    3: apply hoare_consequence_pre with 
+      ((fun st : state => st Y = fact 0 /\ st X = xo) [Y |-> 1]).
     3: apply hoare_asgn.  3: disp.
     2: { disp.  unfold bassn.  simpl.  intros.  destruct H.  destruct H.
-      rewrite not_true_iff_false in H0.  rewrite negb_false_iff in H0.  rewrite Nat.eqb_eq in H0.
-      rewrite H.  rewrite H0.  rewrite H1.  auto. }
+      rewrite not_true_iff_false in H0.  rewrite negb_false_iff in H0.  
+      rewrite Nat.eqb_eq in H0.  rewrite H.  rewrite H0.  rewrite H1.  auto. }
     eapply hoare_seq.
     apply hoare_asgn.
-    apply hoare_consequence_post with (fun st : state => (st Y * st Z) = fact (st Z) /\ st X = xo).
-      2: disp.
+    apply hoare_consequence_post with 
+      (fun st : state => (st Y * st Z) = fact (st Z) /\ st X = xo).  2: disp.
     eapply hoare_consequence_pre.  apply hoare_asgn.
     disp.  intros.  simpl.  unfold assn_sub.  simpl.
     destruct H.  destruct H.  split.  2: auto.  unfold t_update.  simpl.  rewrite H.
@@ -408,23 +400,26 @@ Example factorial_all_hoare_opaque: forall x xo c2,
 
     (* Massaging and steps in opaque predicate *)
     eapply hoare_seq.  eapply hoare_seq.  eapply hoare_seq.  apply hoare_if.
-    5: apply hoare_consequence_pre with ((fun st : state => st X = xo /\ st X' = x) [X' |-> x]).
+    5: apply hoare_consequence_pre with 
+       ((fun st : state => st X = xo /\ st X' = x) [X' |-> x]).
     6: disp; unfold assn_sub; unfold t_update; simpl; auto.  5: apply hoare_asgn.
     4: apply hoare_consequence_pre with
-      ((fun st : state => st X = xo /\ st X' = x /\ st Z' = x * x + x + x + 1) [Z' |-> X' * X' + X' + X' + 1]).
+       ((fun st : state => st X = xo /\ st X' = x /\ st Z' = x * x + x + x + 1) 
+       [Z' |-> X' * X' + X' + X' + 1]).
     4: apply hoare_asgn.  4: unfold assert_implies.
-    4: { intros.  unfold assn_sub, t_update.  simpl.  destruct H.  repeat split.  auto.  auto.  auto. }
+    4: { intros.  unfold assn_sub, t_update.  simpl.  destruct H.  repeat split.  
+         auto.  auto.  auto. }
     3: apply hoare_consequence_pre with
-      ((fun st : state => st X = xo /\ st X' = x /\ st Z' = x * x + x + x + 1 /\ st Z'' = (x + 1) * (x + 1))
-      [Z'' |-> (X' + 1) * (X' + 1)]).
+       ((fun st : state => st X = xo /\ st X' = x /\ st Z' = x * x + x + x + 1 /\ 
+        st Z'' = (x + 1) * (x + 1)) [Z'' |-> (X' + 1) * (X' + 1)]).
     3: apply hoare_asgn.
-    3: { unfold assert_implies.  intros.  unfold assn_sub, t_update.  simpl.  destruct H.  destruct H0.
-    repeat split.  auto.  auto.  auto.  subst.  auto. }
+    3: { unfold assert_implies.  intros.  unfold assn_sub, t_update.  simpl.  
+         destruct H.  destruct H0.  repeat split.  auto.  auto.  auto.  subst.  auto. }
 
     (* Else branch never executes *)
-    2: { unfold hoare_triple.  intros.  unfold bassn in H0.  destruct H0.  destruct H0.  destruct H0.
-    destruct H2.  destruct H2.  contradiction H1.  simpl.  rewrite H2.  rewrite H3.  rewrite Nat.eqb_eq.
-    apply opaque_taut. }
+    2: { unfold hoare_triple.  intros.  unfold bassn in H0.  destruct H0.  destruct H0.  
+         destruct H0.  destruct H2.  destruct H2.  contradiction H1.  simpl.  rewrite H2.  
+         rewrite H3.  rewrite Nat.eqb_eq.  apply opaque_taut. }
 
     (* If branch always executes *)
     apply hoare_consequence_pre with (fun st : state => st X = xo).
@@ -448,7 +443,7 @@ Definition Hoare_fidelity_xy c1 c2 := forall xo yo,
 
 (* Any hoare triple with any pre and post condition of the form X=x0 P Y=y0 is preserved by opaque_trans. *)
 
-Lemma Opaque_trans_hoare_fidelity_xy : forall x c1 c2,
+Theorem Opaque_trans_hoare_fidelity_xy : forall x c1 c2,
   Hoare_fidelity_xy c1 (opaque_trans' x c1 c2).
   Proof.
     intros.  unfold Hoare_fidelity_xy, opaque_trans'.  intros.
@@ -485,7 +480,7 @@ Definition Hoare_fidelity c1 c2 P Q :=
   hoare_triple P c1 Q -> hoare_triple P c2 Q.
 
 
-Lemma Opaque_trans_hoare_fidelity : forall x c1 c2 P Q,
+Theorem Opaque_trans_hoare_fidelity : forall x c1 c2 P Q,
   Hoare_fidelity c1 (opaque_trans' x c1 c2) P Q.
   Proof.
     intros.  unfold Hoare_fidelity, opaque_trans'.  intros.
@@ -511,7 +506,7 @@ End HoareEquivalence.
 
 Section NoAssignment_State.
 
-(* Bahman's reformulation *)
+(* No-Assignment reformulation *)
 
 Definition make_opaque_pred (a1 a2: aexp): bexp :=
   BEq a1 a2.
@@ -522,7 +517,6 @@ Proof. simpl. reflexivity. Qed.
 
 Definition make_opaque_pred_IFB b c1 c2 :=
   IFB b THEN c1 ELSE c2 FI.
-
 
 (* Let X be any variable *)
 Definition ifb_opaque_command X : com := 
@@ -552,16 +546,16 @@ Theorem anycom_trans: forall opaque_pred c1 c2,
   cequiv c1 (make_opaque_pred_IFB opaque_pred c1 c2).
 Proof.
   intros opaque_pred c1 c2 H. unfold cequiv. intros st st'.
-  refine (conj _ _).
+  split.
   - (* -> *)
-    intros proof_of_fact_nonzero_st_st'.
+    intros H1.
     unfold make_opaque_pred_IFB.
     pose (proof1 := IFB_true opaque_pred c1 c2 H).
     unfold cequiv in proof1. apply proof1. assumption.
   - (* <- *)
     unfold make_opaque_pred_IFB.
     intros H1.
-    unfold bequiv in H. simpl in H.
+    unfold bequiv in H.  simpl in H.
     pose (proof1 := IFB_true opaque_pred c1 c2 H).
     unfold cequiv in proof1. apply proof1. assumption.
 Qed.
@@ -587,6 +581,16 @@ Proof.
   pose (proof1 := anycom_trans (BEq 0 0) SKIP SKIP proof_of_bequiv_same_BTrue). assumption.
 Qed.
 
+Example example_fact_opaque_pred:
+  cequiv 
+    fact_nonzero 
+    (make_opaque_pred_IFB (make_opaque_pred ((X + 1) * (X + 1)) (X * X + X + X + 1)) fact_nonzero SKIP).
+  Proof.
+    apply anycom_trans.
+    unfold make_opaque_pred.  unfold bequiv.  intros.  
+    unfold beval.  unfold aeval.  apply opaque_taut'_sym.
+  Qed.
+
 Example example0_opaque_pred:
   cequiv 
     fact_nonzero 
@@ -610,8 +614,7 @@ Example example1_opaque_pred:
     fact_nonzero 
     (make_opaque_pred_IFB (make_opaque_pred ((X + 1) * (X + 1)) (X * X + X + X + 1)) fact_nonzero SKIP).
   Proof.
-  unfold cequiv. intros st st'.
-  refine (conj _ _).
+  unfold cequiv. intros st st'.  split.
   - (* -> *)
     intros proof_of_fact_nonzero_st_st'.
     unfold make_opaque_pred_IFB. unfold make_opaque_pred.

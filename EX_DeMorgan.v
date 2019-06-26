@@ -15,10 +15,10 @@ Theorem deMorgan : forall P Q : Prop, ~(P \/ Q) <-> ~P /\ ~Q.
         * right.  assumption.
         * apply H in H1.
           assumption.
-     - intro H.
-       intro H1.
-       destruct H.
-       elim H1.
-       + assumption.
-       + assumption.
+    - intro H.
+      intro H1.
+      destruct H.
+      elim H1.
+      + assumption.
+      + assumption.
   Qed.
