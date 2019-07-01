@@ -549,7 +549,7 @@ Proof.
   split.
   - (* -> *)
     intros H1.
-    unfold make_opaque_pred_IFB.
+    unfold make_opaque_pred_IFB.  Check IFB_true.
     pose (proof1 := IFB_true opaque_pred c1 c2 H).
     unfold cequiv in proof1. apply proof1. assumption.
   - (* <- *)
@@ -584,7 +584,8 @@ Qed.
 Example example_fact_opaque_pred:
   cequiv 
     fact_nonzero 
-    (make_opaque_pred_IFB (make_opaque_pred ((X + 1) * (X + 1)) (X * X + X + X + 1)) fact_nonzero SKIP).
+    (make_opaque_pred_IFB (make_opaque_pred 
+      ((X + 1) * (X + 1)) (X * X + X + X + 1)) fact_nonzero SKIP).
   Proof.
     apply anycom_trans.
     unfold make_opaque_pred.  unfold bequiv.  intros.  
