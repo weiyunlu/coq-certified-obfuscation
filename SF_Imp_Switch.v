@@ -1499,7 +1499,7 @@ Proof.
 
 
 Theorem ceval_deterministic: forall c st st1 st2,
-     c / st \\ st1  ->
+     c / st \\ st1 ->
      c / st \\ st2 ->
      st1 = st2.
 Proof.

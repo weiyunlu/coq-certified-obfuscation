@@ -67,7 +67,7 @@ Definition TransWorldEater := transform_program SKIP (X = 0) SKIP (X ::= 1) SKIP
 Compute WorldEater.
 Compute TransWorldEater.
 
-Definition cequiv' (c1 c2 : com) : Prop :=
+Definition cequiv (c1 c2 : com) : Prop :=
   forall (st st' : state),
     (c1 / st \\ st') <-> (c2 / st \\ st').
 
@@ -88,9 +88,9 @@ Lemma t_update_comm : forall A (m: total_map A) v1 v2 x y,
 
 (* Bona fide command equivalence of the example program and its transformed state, not just Hoare logic! *)
 
-Example WorldEaterTransEquiv : cequiv' WorldEater TransWorldEater.
+Example WorldEaterTransEquiv : cequiv WorldEater TransWorldEater.
   Proof.
-    unfold cequiv'.  intros.  split.
+    unfold cequiv.  intros.  split.
     
       (* (I) Original -> Transformed. *)
       - unfold WorldEater, TransWorldEater.  unfold preprocess_program, transform_program.  intro H.
@@ -278,72 +278,91 @@ Lemma eval_inv_imp_eval_ind : forall c X n st st',
 Theorem AllTransEquiv : forall header cond c1 c2 footer, 
   eval_invariant c1 swVar -> eval_invariant c2 swVar -> 
   eval_invariant footer swVar -> beval_invariant cond swVar ->
-  cequiv' (preprocess_program header cond c1 c2 footer) (transform_program header cond c1 c2 footer).
+  cequiv (preprocess_program header cond c1 c2 footer) 
+    (transform_program header cond c1 c2 footer).
   Proof.
-    unfold cequiv'.   intros header cond c1 c2 footer HI1 HI2 HIf HB st st'.  split.
+    unfold cequiv.   intros header cond c1 c2 footer HI1 HI2 HIf HB st st'.  split.
 
-      (* (I) Original -> Transformed. *)
+      (* (I) Preprocessed -> Transformed. *)
       - unfold preprocess_program, transform_program.  intro H.
 
       (* Break apart sequencing in hypothesis. *)
-      inversion H; subst.  inversion H5; subst.  inversion H7; subst.  inversion H9; subst. 
+      inversion H; subst.  inversion H5; subst.  
+      inversion H7; subst.  inversion H9; subst. 
 
       (* Assert initial and final values of swVar *)
       assert (A0 : aeval st'0 swVar = 0).  inversion H2.  subst.  auto.
       assert (A5 : aeval st' swVar = 5).  inversion H11.  subst.  auto.
 
-      (* Law of excluded middle: cond is true or false at point of branching statement *)
+      (* Law of excluded middle: cond is T or F at point of branching statement *)
       destruct (beval st'1 cond) eqn:LEM.
 
         (* I.i Case 1: cond is true *)
         + eapply E_Seq.  apply H2.  eapply E_WhileTrue.
             * unfold beval.  rewrite A0.  auto.
-            * eapply E_Switch.  auto.  rewrite A0.  simpl.  auto.  eapply E_Seq.  simpl.  apply H3.  apply E_Ass.  auto.
+            * eapply E_Switch.  auto.  rewrite A0.  simpl.  auto.  eapply E_Seq.  simpl.  
+              apply H3.  apply E_Ass.  auto.
             * simpl.  eapply E_WhileTrue.
               -- unfold beval.  simpl.  auto.
-              -- eapply E_Switch.  auto.  simpl.  auto.  apply E_IfTrue.  rewrite <- HB.  assumption.  apply E_Ass.  auto.
+              -- eapply E_Switch.  auto.  simpl.  auto.  apply E_IfTrue.  rewrite <- HB.
+                 assumption.  apply E_Ass.  auto.
               -- eapply E_WhileTrue.
                  ++ auto.
-                 ++ eapply E_Switch.  auto.  simpl.  auto.  apply E_Seq with (st'2 & { swVar --> 2 }).  simpl.
-                    inversion H4.  rewrite t_update_shadow.  unfold eval_invariant in HI1.  rewrite <- HI1.
-                    assumption.  rewrite H13 in LEM.  inversion LEM.  apply E_Ass.  auto.
+                 ++ eapply E_Switch.  auto.  simpl.  auto.  
+                    apply E_Seq with (st'2 & { swVar --> 2 }).  
+                    simpl.  inversion H4.  rewrite t_update_shadow.  
+                    unfold eval_invariant in HI1.  rewrite <- HI1.  assumption.
+                    rewrite H13 in LEM.  inversion LEM.  apply E_Ass.  auto.
                  ++ simpl.  eapply E_WhileTrue.
                     ** auto.
-                    ** eapply E_Switch.  auto.  simpl.  auto.  apply E_Seq with (st'3 & { swVar --> 4 }).  rewrite t_update_shadow.  
-                       unfold eval_invariant in HIf.  rewrite <- HIf.  assumption.  apply E_Ass.  auto.
+                    ** eapply E_Switch.  auto.  simpl.  auto.  
+                       apply E_Seq with (st'3 & { swVar --> 4 }).
+                       rewrite t_update_shadow.  unfold eval_invariant in HIf.  
+                       rewrite <- HIf.  assumption.  apply E_Ass.  auto.
                     ** simpl.  rewrite t_update_shadow.
                        assert (sameState : st'3 & {swVar --> 5} = st').
-                       { apply ceval_deterministic with ((IFB cond THEN c1 ELSE c2 FI);; footer;; swVar ::= 5) st'1.  
+                       { apply ceval_deterministic with 
+                           ((IFB cond THEN c1 ELSE c2 FI);; footer;; swVar ::= 5) st'1.
                              2: auto.  eapply E_Seq.  apply E_IfTrue.  auto.  simpl.
-                                inversion H4.  apply H14.  rewrite H13 in LEM.  inversion LEM.  eapply E_Seq.  apply H6.  apply E_Ass.  auto. } 
+                                inversion H4.  apply H14.  rewrite H13 in LEM.  
+                                inversion LEM.  eapply E_Seq.  apply H6.  apply E_Ass.  
+                                auto. } 
                        rewrite sameState.  eapply E_WhileFalse.
                        --- unfold beval.  rewrite A5.  auto.
 
          (* I.ii Case 2: X =/= 0 *)
          + eapply E_Seq.  apply H2.  eapply E_WhileTrue.
             * unfold beval.  rewrite A0.  auto.
-            * eapply E_Switch.  auto.  rewrite A0.  simpl.  auto.  eapply E_Seq.  apply H3.  apply E_Ass.  auto.
+            * eapply E_Switch.  auto.  rewrite A0.  simpl.  auto.  eapply E_Seq.
+              apply H3.  apply E_Ass.  auto.
             * simpl.  eapply E_WhileTrue.
               -- unfold beval.  simpl.  auto.
-              -- eapply E_Switch.  auto.  simpl.  auto.  apply E_IfFalse.  rewrite <- HB.  assumption.  apply E_Ass.  auto.
+              -- eapply E_Switch.  auto.  simpl.  auto.  apply E_IfFalse.  rewrite <- HB.
+                 assumption.  apply E_Ass.  auto.
               -- eapply E_WhileTrue.
                  ++ auto.
-                 ++ eapply E_Switch.  auto.  simpl.  auto.  apply E_Seq with (st'2 & { swVar --> 3 } ).
-                    inversion H4.  rewrite H13 in LEM.  inversion LEM.
-                    simpl.  rewrite t_update_shadow.  unfold eval_invariant in HI2.  rewrite <- HI2.  auto.  apply E_Ass.  auto.
+                 ++ eapply E_Switch.  auto.  simpl.  auto.  
+                    apply E_Seq with (st'2 & { swVar --> 3 } ).  inversion H4.
+                    rewrite H13 in LEM.  inversion LEM.  simpl.  rewrite t_update_shadow.
+                    unfold eval_invariant in HI2.  rewrite <- HI2.  auto.  
+                    apply E_Ass.  auto.
                  ++ simpl.  eapply E_WhileTrue.
                     ** auto.
-                    ** eapply E_Switch.  auto.  simpl.  auto.  apply E_Seq with (st'3 & {swVar --> 4 }).  rewrite t_update_shadow.
-                       unfold eval_invariant in HIf.  rewrite <- HIf.  assumption.  apply E_Ass.  auto.
+                    ** eapply E_Switch.  auto.  simpl.  auto.
+                       apply E_Seq with (st'3 & {swVar --> 4 }).  rewrite t_update_shadow.
+                       unfold eval_invariant in HIf.  rewrite <- HIf.  assumption.
+                       apply E_Ass.  auto.
                     ** simpl.  rewrite t_update_shadow.
                        assert (sameState : st'3 & {swVar --> 5} = st').
-                       { apply ceval_deterministic with ((IFB cond THEN c1 ELSE c2 FI);; footer;; swVar ::= 5) st'1.  
+                       { apply ceval_deterministic with 
+                           ((IFB cond THEN c1 ELSE c2 FI);; footer;; swVar ::= 5) st'1.
                              2: auto.  eapply E_Seq.  apply E_IfFalse.  auto.  simpl.
-                             inversion H4.  rewrite H13 in LEM.  inversion LEM.  apply H14.  eapply E_Seq.  apply H6.  apply E_Ass.  auto. } 
+                             inversion H4.  rewrite H13 in LEM.  inversion LEM.
+                             apply H14.  eapply E_Seq.  apply H6.  apply E_Ass.  auto. } 
                        rewrite sameState.  eapply E_WhileFalse.
                        --- unfold beval.  rewrite A5.  auto.
 
-       (* (II) Transformed -> Original. *) 
+       (* (II) Transformed -> Preprocessed. *) 
       - unfold transform_program, preprocess_program.  intro H.
         apply E_Seq with (st & {swVar --> 0}).  apply E_Ass.  auto.
 
@@ -355,9 +374,8 @@ Theorem AllTransEquiv : forall header cond c1 c2 footer,
         { apply ceval_deterministic with (swVar ::= 0) st.  apply E_Ass.  auto.  auto. }
         subst.
 
-        inversion H5.  subst.  simpl in H6.  inversion H6.  subst.  inversion H4.  subst.  simpl in H7.
-        inversion H7.  rewrite <- H1 in H11.  inversion H11.  subst.
-        
+        inversion H5.  subst.  simpl in H6.  inversion H6.  subst.  inversion H4.  subst.
+        simpl in H7.  inversion H7.  rewrite <- H1 in H11.  inversion H11.  subst.       
         eapply E_Seq.  apply H9.
 
         assert (sameState : st'1 & {swVar --> 1} = st'0).
@@ -369,84 +387,92 @@ Theorem AllTransEquiv : forall header cond c1 c2 footer,
 
           (* II.i Case 1: cond is true *)
 
-            (* Fetch effects of c1 out of hypothesis... break down hypotheses to go through two iterations of while-switch. *)
-            + inversion H8.  inversion H12.  subst.  inversion H10.  subst.  simpl in H14.  inversion H14.  subst.
-            inversion H18.  subst.  2: { rewrite <- HB in H19.  rewrite H19 in LEM.  inversion LEM. }
+            (* Fetch effects of c1 out of hypothesis... 
+               break down hypotheses to go through two iterations of while-switch. *)
+            + inversion H8.  inversion H12.  subst.  inversion H10.  subst.
+              simpl in H14.  inversion H14.  subst.  inversion H18.  subst.
+              2: { rewrite <- HB in H19.  rewrite H19 in LEM.  inversion LEM. }
 
-            assert (sameState : st'0 = st'1 & { swVar --> 1 ; swVar --> 2 }).
-            { apply ceval_deterministic with (swVar ::= 2) (st'1 & {swVar --> 1}).
-              auto.  apply E_Ass.  auto. }
+              assert (sameState : st'0 = st'1 & { swVar --> 1 ; swVar --> 2 }).
+              { apply ceval_deterministic with (swVar ::= 2) (st'1 & {swVar --> 1}).
+                auto.  apply E_Ass.  auto. }
 
-            subst.  inversion H15.  subst.  inversion H17.  subst.  inversion H16.  subst.  simpl in H21.  subst.
-            inversion H21.  subst.  inversion H25.  subst.  rewrite t_update_shadow in H17.
+              subst.  inversion H15.  subst.  inversion H17.  subst.  inversion H16.
+              subst.  simpl in H21.  subst.  inversion H21.  subst.  inversion H25.
+              subst.  rewrite t_update_shadow in H17.
 
-            assert (c1 / st'1 \\ st'2).
-            { apply eval_inv_imp_eval_ind with swVar 2.  auto.  auto. }
+              assert (c1 / st'1 \\ st'2).
+              { apply eval_inv_imp_eval_ind with swVar 2.  auto.  auto. }
 
-            eapply E_Seq.  apply E_IfTrue.  auto.  apply H0.
+              eapply E_Seq.  apply E_IfTrue.  auto.  apply H0.
 
-            (* Footer and close it off *)
+              (* Footer and close it off *)
  
-             assert (sameState : st'0 = st'2 & { swVar --> 4 }).
-             { apply ceval_deterministic with (swVar ::= 4) st'2.  auto.  apply E_Ass.  auto. }
-             subst.  inversion H22.  subst.  inversion H28.  inversion H27.  subst.  simpl in H34.  inversion H34.  subst.
-             inversion H37.  subst.
+              assert (sameState : st'0 = st'2 & { swVar --> 4 }).
+              { apply ceval_deterministic with (swVar ::= 4) st'2.  auto.  apply E_Ass.
+                auto. }
+              subst.  inversion H22.  subst.  inversion H28.  inversion H27.  subst.
+              simpl in H34.  inversion H34.  subst.  inversion H37.  subst.
  
-             assert (footer / st'2 \\ st'3).
-             { apply eval_inv_imp_eval_ind with swVar 4.  auto.  auto. }
-             subst.
+              assert (footer / st'2 \\ st'3).
+              { apply eval_inv_imp_eval_ind with swVar 4.  auto.  auto. }
+              subst.
  
-             inversion H30.  subst.
-             assert (footer / st'2 \\ st'3).
-             { apply eval_inv_imp_eval_ind with swVar 4.  auto.  auto. }
+              inversion H30.  subst.
+              assert (footer / st'2 \\ st'3).
+              { apply eval_inv_imp_eval_ind with swVar 4.  auto.  auto. }
              
-             eapply E_Seq.  apply H1.  apply H32.
+              eapply E_Seq.  apply H1.  apply H32.
  
-             (* Impossible case of while loop true *)
+              (* Impossible case of while loop true *)
  
-             subst.  assert (sameState : st'0 = st'3 & { swVar --> 5 } ).
-             { apply ceval_deterministic with (swVar ::= 5) st'3.
-               auto.  apply E_Ass.  auto. }
-             subst.  inversion H31.
- 
+              subst.  assert (sameState : st'0 = st'3 & { swVar --> 5 } ).
+              { apply ceval_deterministic with (swVar ::= 5) st'3.
+                auto.  apply E_Ass.  auto. }
+                subst.  inversion H31.
+
            (* II.ii Case 2: cond is false *)
                
-             (* Fetch effects of c2 out of hypothesis... break down hypotheses to go through two iterations of while-switch. *)
-             + inversion H8.  inversion H12.  subst.  inversion H10.  subst.  simpl in H14.  inversion H14.  subst.
-             inversion H18.  subst.  rewrite <- HB in H19.  rewrite H19 in LEM.  inversion LEM.
+             (* Fetch effects of c2 out of hypothesis... 
+                break down hypotheses to go through two iterations of while-switch. *)
+             + inversion H8.  inversion H12.  subst.  inversion H10.  subst.
+               simpl in H14.  inversion H14.  subst.  inversion H18.  subst.
+               rewrite <- HB in H19.  rewrite H19 in LEM.  inversion LEM.
  
-             assert (sameState : st'0 = st'1 & { swVar --> 1 ; swVar --> 3 }).
-             { apply ceval_deterministic with (swVar ::= 3) (st'1 & {swVar --> 1}).
-               auto.  apply E_Ass.  auto. }
+               assert (sameState : st'0 = st'1 & { swVar --> 1 ; swVar --> 3 }).
+               { apply ceval_deterministic with (swVar ::= 3) (st'1 & {swVar --> 1}).
+                 auto.  apply E_Ass.  auto. }
  
-             subst.  inversion H15.  subst.  inversion H17.  subst.  inversion H16.  subst.  simpl in H21.  subst.
-             inversion H21.  subst.  inversion H25.  subst.  rewrite t_update_shadow in H17.
+               subst.  inversion H15.  subst.  inversion H17.  subst.  inversion H16.
+               subst.  simpl in H21.  subst.  inversion H21.  subst.  inversion H25.
+               subst.  rewrite t_update_shadow in H17.
  
-             assert (c2 / st'1 \\ st'2).
-             { apply eval_inv_imp_eval_ind with swVar 3.  auto.  auto. }
+               assert (c2 / st'1 \\ st'2).
+               { apply eval_inv_imp_eval_ind with swVar 3.  auto.  auto. }
  
-             eapply E_Seq.  apply E_IfFalse.  auto.  apply H0.
+               eapply E_Seq.  apply E_IfFalse.  auto.  apply H0.
  
-             (* Footer and close it off *)
+               (* Footer and close it off *)
  
-             assert (sameState : st'0 = st'2 & { swVar --> 4 }).
-             { apply ceval_deterministic with (swVar ::= 4) st'2.  auto.  apply E_Ass.  auto. }
-             subst.  inversion H22.  subst.  inversion H28.  inversion H27.  subst.  simpl in H34.  inversion H34.  subst.
-             inversion H37.  subst.
+               assert (sameState : st'0 = st'2 & { swVar --> 4 }).
+               { apply ceval_deterministic with (swVar ::= 4) st'2.  auto.
+                 apply E_Ass.  auto. }
+               subst.  inversion H22.  subst.  inversion H28.  inversion H27.  subst.
+               simpl in H34.  inversion H34.  subst.  inversion H37.  subst.
  
-             assert (footer / st'2 \\ st'3).
-             { apply eval_inv_imp_eval_ind with swVar 4.  auto.  auto. }
+               assert (footer / st'2 \\ st'3).
+               { apply eval_inv_imp_eval_ind with swVar 4.  auto.  auto. }
  
-             inversion H30.  subst.
-             assert (footer / st'2 \\ st'3).
-             { apply eval_inv_imp_eval_ind with swVar 4.  auto.  auto. }
+               inversion H30.  subst.
+               assert (footer / st'2 \\ st'3).
+               { apply eval_inv_imp_eval_ind with swVar 4.  auto.  auto. }
              
-             eapply E_Seq.  apply H1.  apply H32.
+               eapply E_Seq.  apply H1.  apply H32.
  
-             (* Impossible case of while loop true *)
+               (* Impossible case of while loop true *)
  
-             subst.  assert (sameState : st'0 = st'3 & { swVar --> 5 } ).
-             { apply ceval_deterministic with (swVar ::= 5) st'3.
-               auto.  apply E_Ass.  auto. }
-             subst.  inversion H31.
+               subst.  assert (sameState : st'0 = st'3 & { swVar --> 5 } ).
+               { apply ceval_deterministic with (swVar ::= 5) st'3.
+                 auto.  apply E_Ass.  auto. }
+                 subst.  inversion H31.
   Qed.
