@@ -30,7 +30,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.omega.Omega.
 Import ListNotations.
 
-Require Import Maps.
+Require Import SF_Maps.
 
 (* ################################################################# *)
 (** * Arithmetic and Boolean Expressions *)
@@ -1102,64 +1102,16 @@ Proof. simpl. reflexivity. Qed.
 
 (** Here is the formal definition of the abstract syntax of
     commands: *)
-Definition address := nat.
 
-(* W.L. edit: Collapse an IfCom back into a com
-              We can have two kinds of ifcoms: ones that have an address label, and the regular old kind. *)
+Definition address := nat.
 
 Inductive com : Type :=
   | CSkip : com
   | CAss : string -> aexp -> com
   | CSeq : com -> com -> com
   | CIf : bexp -> com -> com -> com
-  | CGoto : address -> com 
   | CWhile : bexp -> com -> com
-  | CSwitch : string -> list (address * com) -> com
-  | CASkip: address -> com                                      (* <---- New.  All atomic commands except Gotos can now be addressed *)
-  | CAAss : address -> string -> aexp -> com
-  | CAIf : address -> bexp -> com -> com -> com
-  | CAWhile : address -> bexp -> com -> com
-  | CASwitch : address -> string -> list (address * com) -> com.
- 
-
-Inductive isAIfcommand : com -> Prop :=
-| IsIfcommand : forall adr b c1 c2, isAIfcommand (CAIf adr b c1 c2).
-
-Definition isAtomicAdr (c : com) : bool :=
-  match c with
-  | CASkip _                 => true
-  | CAAss _ _ _              => true
-  | CAIf _ _ _ _             => true
-  | CAWhile _ _ _            => true
-  | CASwitch _ _ _           => true
-  | _                        => false
-  end.
-
-Definition getAdr (c : com) : address :=
-  match c with
-  | CASkip adr                 => adr
-  | CAAss adr _ _              => adr
-  | CAIf adr _ _ _             => adr
-  | CAWhile adr _ _            => adr
-  | CASwitch adr _ _           => adr
-  | _                          => 0
-  end.
-
-Definition removeAdr (c : com) : com :=
-  match c with
-  | CASkip adr                 => CSkip
-  | CAAss adr a b              => CAss a b
-  | CAIf adr b c1 c2            => CIf b c1 c2
-  | CAWhile adr b c            => CWhile b c
-  | CASwitch adr sw dict           => CSwitch sw dict
-  | _                        => c
-  end.
-
-
-
-
-Theorem is_if_if: forall adr b c1 c2, isAIfcommand (CAIf adr b c1 c2).
-Proof. constructor. Qed.
+  | CSwitch : string -> list (address * com) -> com. (** <-- New! **)
 
 
 
@@ -1193,7 +1145,7 @@ Proof. reflexivity. Qed.
 Example test_lc_lookup:
   lc_lookup empty_lc 1 
   = None.
-Proof. reflexivity. Qed.
+Proof. reflexivity. Qed.  Print option.
 
 (** As for expressions, we can use a few [Notation] declarations to make 
     reading and writing Imp programs more convenient. *)
@@ -1209,21 +1161,9 @@ Notation "'WHILE' b 'DO' c 'END'" :=
 Notation "'IFB' c1 'THEN' c2 'ELSE' c3 'FI'" :=
   (CIf c1 c2 c3) (at level 80, right associativity) : com_scope.
 
-Notation "'Goto' adr" :=
-  (CGoto adr)(at level 60) : com_scope.  
 Notation "'SWITCH' var swDict" := 
             (CSwitch var swDict) (at level 80, swDict at level 1, var at level 5, right associativity) : com_scope.    
 
-Notation "adr ':SKIP'" :=
-  (CASkip adr) (at level 60) : com_scope.
-Notation "adr ':' x '::=' a" :=
-  (CAAss adr x a) (at level 80, x at level 5, right associativity) : com_scope.
-Notation "adr ':IFB' c1 'THEN' c2 'ELSE' c3 'FI'" :=
-  (CAIf adr c1 c2 c3) (at level 80, right associativity) : com_scope.
-Notation "adr ':WHILE' b 'DO' c 'END'" :=
-  (CAWhile adr b c) (at level 80, b at level 5, right associativity) : com_scope.
-Notation "adr ':SWITCH' var swDict" :=
-  (CASwitch adr var swDict) (at level 80, swDict at level 1, var at level 5, right associativity) : com_scope. 
 
 
 (** The following declaration is needed to be able to use the
@@ -1252,19 +1192,6 @@ Compute lc_concat [(1, X ::= 2) ; (2, X ::= 3)] [(2, SKIP) ; (4, SKIP)].
 
 Check (CSkip).
 
-Check (CAIf 1 (! (Z = 0)) (Z ::= X) (Y ::= 1)).
-
-Definition fact_in_coq : com :=
-  Z ::= X;;
-  Y ::= 1;;
-  100 :IFB ! (Z = 0) 
-  THEN
-    Y ::= Y * Z;;
-    Z ::= Z - 1;;
-    Goto 100
-  ELSE
-    SKIP  
-  FI.
 
 
 
@@ -1447,106 +1374,45 @@ Fixpoint ceval_fun_no_while (st : state) (c : com)
    as a part of the program itself, much like an amplifier for an electric guitar is considered a part
    of the instrument itself. *)
 
-Reserved Notation "lc '&&' c1 '/' st1 '\\' st2"
-  (at level 40, st1 at level 38, c1 at level 39).
+Reserved Notation "c1 '/' st1 '\\' st2"
+  (at level 40, st1 at level 38).
 
-Inductive ceval : lc -> com -> state -> state -> Prop :=
-  | E_Skip : forall l st,
-      l && SKIP / st \\ st
-  | E_Ass  : forall l st a1 n x,
+Inductive ceval : com -> state -> state -> Prop :=
+  | E_Skip : forall st,
+      SKIP / st \\ st
+  | E_Ass  : forall st a1 n x,
       aeval st a1 = n ->
-      l && (x ::= a1) / st \\ (st & { x --> n })
-  | E_Seq : forall l c1 c2 st st' st'',
-      l && c1 / st \\ st' ->
-      l && c2 / st' \\ st'' ->
-      l && (c1 ;; c2) / st \\ st''
-  | E_IfTrue : forall l st st' b c1 c2,
+      (x ::= a1) / st \\ (st & { x --> n })
+  | E_Seq : forall c1 c2 st st' st'',
+      c1 / st \\ st' ->
+      c2 / st' \\ st'' ->
+      (c1 ;; c2) / st \\ st''
+  | E_IfTrue : forall st st' b c1 c2,
       beval st b = true ->
-      l && c1 / st \\ st' ->
-      l && (IFB b THEN c1 ELSE c2 FI) / st \\ st'
-  | E_IfFalse : forall l st st' b c1 c2,
+      c1 / st \\ st' ->
+      (IFB b THEN c1 ELSE c2 FI) / st \\ st'
+  | E_IfFalse : forall st st' b c1 c2,
       beval st b = false ->
-      l && c2 / st \\ st' ->
-      l && (IFB b THEN c1 ELSE c2 FI) / st \\ st'
-  | E_WhileFalse : forall l b st c,
+      c2 / st \\ st' ->
+      (IFB b THEN c1 ELSE c2 FI) / st \\ st'
+  | E_WhileFalse : forall b st c,
       beval st b = false ->
-      l && (WHILE b DO c END) / st \\ st
-  | E_WhileTrue : forall l st st' st'' b c,
+      (WHILE b DO c END) / st \\ st
+  | E_WhileTrue : forall st st' st'' b c,
       beval st b = true ->
-      l && c / st \\ st' ->
-      l && (WHILE b DO c END) / st' \\ st'' ->
-      l && (WHILE b DO c END) / st \\ st''
+      c / st \\ st' ->
+      (WHILE b DO c END) / st' \\ st'' ->
+      (WHILE b DO c END) / st \\ st''
 
-
-  (* New: Addressed If and Gotos *)
-  | E_AIf : forall adr l st st' b c1 c2,
-      l && (IFB b THEN c1 ELSE c2 FI) / st \\ st' ->    (* Without address, the statement holds traditionally *)
-      (* lc_lookup l adr = Some (CAIf adr b c1 c2) ->  *)    (* Doesn't matter; breaks sequences. *)
-      l && (adr :IFB b THEN c1 ELSE c2 FI) / st \\ st'  (* Then, we're good to go *)
-  | E_JumpAIf : forall adr l b c1 c2 st st',
-      lc_lookup l adr = Some (adr :IFB b THEN c1 ELSE c2 FI) -> (* Find the thing at the address, which must be a labelled if *)
-      l && (adr :IFB b THEN c1 ELSE c2 FI) / st \\ st' ->       (* The labelled if does what it's supposed to *)
-      l && (Goto adr) / st \\ st'                               (* Then, we're good to go *)
 
   (* New: Switch.  No default behavior.  If the value is not found, there is no evaluation. *)
-  | E_Switch: forall l var n swDict c st st',
+  | E_Switch: forall var n swDict c st st',
       aeval st (AId var) = n ->                       (* If the value of the switch variable at the initial state is n... *)
       lc_lookup swDict n = Some c ->                  (* And if the switch dictionary's value at n is the command c... *)
-      l && c / st \\ st' ->                           (* And the command takes st to st'... *)
-      l && (SWITCH var swDict) / st \\ st'             (* Then, we're good to go *)    
-
-  (* New: Addressed Skip, Assignment, While, Switch *)
-  | E_ASkip : forall adr l st,
-      (* lc_lookup l adr = Some (adr :SKIP) ->  *)
-      l && (adr :SKIP) / st \\ st
-  | E_AAss : forall l adr st st' a1 x,
-      l && (x ::= a1) / st \\ st' ->
-      (* lc_lookup l adr = Some (adr : x ::= a1) -> *)
-      l && (adr :x ::= a1) / st \\ st'
-  | E_AWhile : forall adr l b st st' c,
-      l && (WHILE b DO c END) / st \\ st' ->
-      (* lc_lookup l adr = Some (adr :WHILE b DO c END) -> *)
-      l && (adr :WHILE b DO c END) / st \\ st'
-  | E_ASwitch : forall adr l var swDict st st',
-      l && (SWITCH var swDict) / st \\ st' ->
-      (* lc_lookup l adr = Some (adr :SWITCH var swDict) -> *)
-      l && (adr :SWITCH var swDict) / st \\ st'
-
-  (* New: Jumps to these statements *)
-  | E_JumpASkip : forall adr l st,
-      lc_lookup l adr = Some (adr :SKIP) ->         
-      l && (adr :SKIP) / st \\ st ->  
-      l && (Goto adr) / st \\ st                              
-  | E_JumpAAas : forall adr l st st' a1 x,
-      lc_lookup l adr = Some (adr :x ::= a1) ->
-      l && (adr :x ::= a1) / st \\ st' ->       
-      l && (Goto adr) / st \\ st'                               
-  | E_JumpAWhile : forall adr l b st st' c,
-      lc_lookup l adr = Some (adr :WHILE b DO c END) -> 
-      l && (adr :WHILE b DO c END) / st \\ st' ->       
-      l && (Goto adr) / st \\ st'                              
-  | E_JumpASwitch : forall adr l var swDict st st',
-      lc_lookup l adr = Some (adr :SWITCH var swDict) ->
-      l && (adr :SWITCH var swDict) / st \\ st' ->     
-      l && (Goto adr) / st \\ st'
-
-  (* New: Jump to a compound c1 ;; c2 where c1 is a labelled statement. *)
-  | E_ASeq : forall adr l c1 c2 st st' st'',
-      lc_lookup l adr = Some (c1 ;; c2) ->
-      isAtomicAdr c1 = true ->
-      getAdr c1 = adr ->
-      l && c1 / st \\ st'' ->
-      l && c2 / st'' \\ st' ->
-      l && (c1 ;; c2) / st \\ st'
-  | E_JumpASeq : forall adr l c1 c2 st st' st'',
-      lc_lookup l adr = Some (c1 ;; c2) ->
-      isAtomicAdr c1 = true ->
-      getAdr c1 = adr ->
-      l && c1 / st \\ st'' ->
-      l && c2 / st'' \\ st' ->
-      l && (Goto adr) / st \\ st'                             
-
-where "lc '&&' c1 '/' st1 '\\' st2" := (ceval lc c1 st1 st2).
+      c / st \\ st' ->                           (* And the command takes st to st'... *)
+      (SWITCH var swDict) / st \\ st'             (* Then, we're good to go *)    
+               
+where "c1 '/' st1 '\\' st2" := (ceval c1 st1 st2).
 
 (* An example of a switch *)
 
@@ -1560,13 +1426,13 @@ Check (SWITCH X sw_lc).
     Coq's computation mechanism do it for us. *)
 
 Check (X ::= 2;;
-     100 :IFB X <= 1
+     IFB X <= 1
        THEN Y ::= 3
        ELSE Z ::= 4
      FI).
 
 Definition theIfCom :=
-     100 :IFB X <= 1
+     IFB X <= 1
        THEN Y ::= 3
        ELSE Z ::= 4
      FI.
@@ -1575,8 +1441,8 @@ Definition tlc : lc :=
    (lc_update 100 theIfCom empty_lc).
 
 Example ceval_example1:
-    tlc && (X ::= 2;;
-     100 :IFB X <= 1
+    (X ::= 2;;
+     IFB X <= 1
        THEN Y ::= 3
        ELSE Z ::= 4
      FI)
@@ -1587,66 +1453,10 @@ Proof.
   - (* assignment command *)
     apply E_Ass. reflexivity.
   - (* if command *)
-    apply E_AIf.
-    + apply E_IfFalse.  auto.  apply E_Ass.  auto.  
+    apply E_IfFalse.
+    auto.  apply E_Ass.  auto.  
 Qed.
 
-Check (101 :IFB X <= 1
-       THEN 
-        Z ::= Z + 1;;
-        X ::= X - 1;;
-        Goto 101
-       ELSE 
-        Z ::= 4
-     FI).
-
-Definition theIfCom2 := (101 :IFB (X <= 2) THEN
-        (Z ::= Z + 1;;
-         X ::= X + 1;;
-         Goto 101) ELSE
-        (Z ::= 4) FI).
-
-Definition tlc' : lc := 
-   (lc_update 101 theIfCom2 empty_lc).
-
-Compute tlc'.
-Compute (lc_lookup tlc' 101).
-
-Example ceval_example2:
-    tlc' && (X ::= 1;;
-     101 :IFB X <= 2
-       THEN 
-        Z ::= Z + 1;;
-        X ::= X + 1;;
-        Goto 101
-       ELSE 
-        Z ::= 4
-     FI)
-   / { --> 0 } \\ {X --> 1; Z --> 1; X --> 2; Z --> 2; X --> 3; Z --> 4 }.
-Proof.
-  (* We must supply the intermediate state *)
-  apply E_Seq with {X --> 1}. 
-  apply E_Ass. reflexivity.
-
-  apply E_AIf.
-       
-  apply E_IfTrue. reflexivity. 
-  apply E_Seq with { X --> 1 ; Z --> 1 }. 
-  apply E_Ass.  reflexivity.
-  apply E_Seq with { X --> 1 ; Z --> 1 ; X --> 2 }.  
-  apply E_Ass. reflexivity.
-
-  eapply E_JumpAIf.  simpl.  unfold theIfCom2.  auto.        
-  apply E_AIf.  apply E_IfTrue.  auto.
-  apply E_Seq with {X --> 1; Z --> 1; X --> 2; Z --> 2}.
-  apply E_Ass. reflexivity.
-  apply E_Seq with {X --> 1; Z --> 1; X --> 2; Z --> 2; X --> 3}.
-  apply E_Ass. reflexivity.
-
-  eapply E_JumpAIf.  simpl.  unfold theIfCom2.  auto.
-  apply E_AIf.  apply E_IfFalse.  auto.
-  apply E_Ass.  auto.
-Qed.
 
 (** **** Exercise: 2 stars (ceval_example2)  
 Example ceval_example2:
@@ -1688,18 +1498,18 @@ Proof.
 
 
 
-Theorem ceval_deterministic: forall l c st st1 st2,
-     l && c / st \\ st1  ->
-     l && c / st \\ st2 ->
+Theorem ceval_deterministic: forall c st st1 st2,
+     c / st \\ st1  ->
+     c / st \\ st2 ->
      st1 = st2.
 Proof.
-  intros lc c st st1 st2 E1 E2.
+  intros c st st1 st2 E1 E2.
   generalize dependent st2.
   induction E1;
            intros st2 E2; inversion E2; subst; 
             try (rewrite H in H2; inversion H2); try (rewrite H in H1; inversion H1);
             try (rewrite H in H3; inversion H3); try (rewrite H in H4; inversion H4);
-            try (rewrite H in H5; inversion H5); try (rewrite H in H6; inversion H6).   (* <--- this handles cases of E_Jump of mismatched types *)
+            try (rewrite H in H5; inversion H5); try (rewrite H in H6; inversion H6).
   - (* E_Skip *) reflexivity.
   - (* E_Ass *) reflexivity.
   - (* E_Seq *)
@@ -1708,44 +1518,19 @@ Proof.
     subst st'0.
     apply IHE1_2. assumption.
   - (* E_IfTrue, b1 evaluates to true *)
-      apply IHE1_2.  assert (st' = st''0).  apply IHE1_1.  auto.  subst.  assumption.
+      apply IHE1.  assert (st' = st2).  apply IHE1.  auto.  auto.
   - (* E_IfFalse, b1 evaluates to false *)
       apply IHE1. assumption.
   - (* E_WhileFalse, b1 evaluates to false *)
-      apply IHE1.  assumption.
-  - auto.
+      auto.
   - (* E_WhileTrue, b1 evaluates to true *)
       assert (st' = st'0) as EQ1.
       { (* Proof of assertion *) apply IHE1_1; assumption. }
       subst st'0.
       apply IHE1_2. assumption.
 
-  (* New below for Addressed If and Jump To Addressed If *)
-  - (* E_AIf *)
-    apply IHE1.  assumption.
-  - (* E_JumpAif *)
-    rewrite H1 in H.  inversion H.  rewrite <- H2 in H3.  rewrite <- H4 in H3.  rewrite <- H5 in H3.
-    apply IHE1 in H3.  assumption.
-
   (* New: Switch *)
-  - apply IHE1.  rewrite H0 in H5.  inversion H5.  auto.
-
-  (* New: Addressed Skip/Asn/While/Switch *)
-  - inversion E2.  auto.
-  - apply IHE1.  auto.
-  - apply IHE1.  auto.
-  - apply IHE1.  auto.
-
-  (* New: Jump to addressed Skip/Asn/While/Switch *)
-  - inversion E1.  auto.
-  - apply IHE1.  rewrite <- H2 in H3.  rewrite <- H4 in H3.  auto.
-  - apply IHE1.  rewrite <- H2 in H3.  rewrite <- H4 in H3.  auto.
-  - apply IHE1.  rewrite <- H2 in H3.  rewrite <- H4 in H3.  auto.
-
-  (* New; Jump to addressed sequence/compound command *)
-  - apply IHE1_2.  assert (st'' = st'0).  apply IHE1_1.  auto.  subst.  auto.
-  - apply IHE1_2.  assert (st'' = st''0).  apply IHE1_1.  auto.  subst.  auto.
-  - apply IHE1_2.  rewrite <- H7 in H8.  assert (st'' = st''0).  apply IHE1_1.  subst.  auto.  subst.  auto.
+  - apply IHE1.  rewrite H0 in H4.  inversion H4.  auto.
 Qed.
 
 
@@ -1757,7 +1542,7 @@ Qed.
    restricted locally to the scope of being inside that If/While.  So as long as we're not jumping out of such
    scopes or into a deeper scope, the program should behave as expected.  For the transformation we defined,
    this should be the case.  We ignore switch statements - not necessary for our transformations - don't have labels
-   inside switch statements. *)
+   inside switch statements.
 
 Fixpoint loadDict_outer (c : com) : lc :=
   match c with
@@ -1769,125 +1554,38 @@ Fixpoint loadDict_outer (c : com) : lc :=
                            | true => (lc_update (getAdr c) c empty_lc)
                            | false => empty_lc
                            end
-  end.
+  end. *)
 
 Fixpoint loadDict (c : com) : lc :=
   match c with
   | c1 ;; c2            => match c1 with
                            | IFB b THEN c1_1 ELSE c1_2 FI => lc_concat (lc_concat (loadDict c1_1) (loadDict c1_2)) (loadDict c2)
                            | WHILE b DO cc END => lc_concat (loadDict cc) (loadDict c2)
-                           | adr :IFB b THEN c1_1 ELSE c2_2 FI => (lc_update adr (c1 ;; c2)) (lc_concat (lc_concat (loadDict c1_1) (loadDict c2_2)) (loadDict c2))
-                           | adr :WHILE b DO cc END => (lc_update adr (c1 ;; c2)) (lc_concat (loadDict cc) (loadDict c2))
                            | SKIP => loadDict c2
                            | XX ::= n => loadDict c2
-                           | adr :SKIP => (lc_update adr (c1 ;; c2)) (loadDict c2)
-                           | adr :XX ::= n => (lc_update adr (c1 ;; c2)) (loadDict c2)
-                           | Goto adr => loadDict c2
                            | SWITCH XX swDict => loadDict c2
-                           | adr :SWITCH XX swDict => (lc_update adr (c1 ;; c2)) (loadDict c2) (* <---- Do not look inside Switch.  This can be changed later if necessary. *)
                            | (c1_1 ;; c1_2) => lc_concat (loadDict c1) (loadDict c2)         
                            end
   | _ => match c with
          | IFB b THEN c1_1 ELSE c1_2 FI => lc_concat (loadDict c1_1) (loadDict c1_2)
          | WHILE b DO cc END => loadDict cc
-         | adr :IFB b THEN c1_1 ELSE c2_2 FI => lc_update adr c (lc_concat (loadDict c1_1) (loadDict c2_2))
-         | adr :WHILE b DO cc END => lc_update adr c (loadDict cc)
          | SKIP => []
          | XX ::= n => []
-         | adr :SKIP => lc_update adr c []
-         | adr :XX ::= n => lc_update adr c []
-         | Goto adr => []
          | SWITCH XX swDict => []
-         | adr :SWITCH XX swDict => lc_update adr c [] (* <---- Do not look inside Switch.  This can be changed later if necessary. *)
          | _ => []
          end
   end.
 
 Compute loadDict (X ::= 1;;
-     101 :IFB X <= 2
+     IFB X <= 2
        THEN 
         Z ::= Z + 1;;
-        X ::= X + 1;;
-        Goto 101
+        X ::= X + 1
        ELSE 
         Z ::= 4
      FI).
 
-Compute loadDict (X ::= 1;;
-     101 :IFB X <= 2
-       THEN 
-        Z ::= Z + 1;;
-        X ::= X + 1;;
-        Goto 101
-       ELSE 
-        Z ::= 4
-     FI;;
-     Y ::= 5).
-
-Compute loadDict (X ::= 1;;
-     101 :IFB X <= 2
-       THEN 
-        Z ::= Z + 1;;
-        X ::= X + 1;;
-        102 :WHILE Z <= 10 DO
-          Z ::= Z + 1;;
-          Goto 102
-        END ;;
-        Goto 101
-       ELSE 
-        Z ::= 4
-     FI;;
-     Y ::= 5).
-
 (* Nested *)
-
-Compute loadDict (
-    100 :IFB X <= 3 THEN
-       101 :IFB Y <= X THEN
-              Y ::= Y + 1 ;;
-              Goto 101
-            ELSE
-              SKIP FI ;;
-         X ::= X + 1 ;;
-         Goto 100
-       ELSE
-         Z ::= X + Y
-       FI ;;
-    Z ::= Z + X + Y).
-
-Compute loadDict (
-  100 :IFB X <= 3 THEN
-    (X ::= X + 1 ;;
-    101 :IFB Y <= 2 THEN
-      Y ::= Y + 1 ;;
-      Goto 101
-    ELSE
-      SKIP
-    FI) ;;
-    Goto 100
-  ELSE
-    SKIP
-  FI).
-
-Definition ceval_autoload (c : com) := ceval (loadDict c) c.
-
-Notation "c '/' st1 '\\' st2" := (ceval_autoload c st1 st2)
-  (at level 40, st1 at level 39).
-
-Example ceval_example2':
-    (X ::= 1;;
-     101 :IFB X <= 2
-       THEN 
-        Z ::= Z + 1;;
-        X ::= X + 1;;
-        Goto 101
-       ELSE 
-        Z ::= 4
-     FI)
-   / { --> 0 } \\ {X --> 1; Z --> 1; X --> 2; Z --> 2; X --> 3; Z --> 4 }.
-  Proof.
-    unfold ceval_autoload.  unfold loadDict.  simpl.  apply ceval_example2.
-  Qed.
 
 
 (* A simple example with Switch *)
@@ -1899,7 +1597,6 @@ Example ceval_example_switch1:
       (2, Y ::= 4) ;
       (3, Y ::= 9) ]) / { --> 0 } \\ {X --> 1; Y --> 2}.
   Proof.
-    unfold ceval_autoload.  unfold loadDict.
     eapply E_Seq.  apply E_Ass.  auto.
     eapply E_Switch.  auto.  simpl.  auto.  simpl.  apply E_Ass.  auto.
   Qed.  
@@ -1911,7 +1608,6 @@ Example ceval_example_switch2:
       (2, Y ::= 4) ;
       (3, Y ::= 9) ]) / {X --> 1} \\ {X --> 1; X --> 2; Y --> 4}.
   Proof.
-    unfold ceval_autoload.  unfold loadDict.
     eapply E_Seq.  apply E_Ass.  auto.
     eapply E_Switch.  auto.  simpl.  auto.  simpl.  apply E_Ass.  auto.
   Qed.  
@@ -1923,7 +1619,6 @@ Example ceval_example_switch3:
       (2, Y ::= 4) ;
       (3, Y ::= 9) ]) / {X --> 2} \\ {X --> 2; X --> 3; Y --> 9}.
   Proof.
-    unfold ceval_autoload.  unfold loadDict.
     eapply E_Seq.  apply E_Ass.  auto.
     eapply E_Switch.  auto.  simpl.  auto.  simpl.  apply E_Ass.  auto.
   Qed.  
@@ -1944,22 +1639,6 @@ Fixpoint lc_length (tlc : lc) :=
    more possible addresses than we even have addresses, and hence the next biggest number must be available by the
    pigeon hole principle. *)
 
-Fixpoint makeFresh_aux (tlc : lc) (adr : address) (gas : nat) :=
-  match gas with
-  | 0 => adr
-  | S n => match lc_lookup tlc adr with
-         | None => adr
-         | Some _ => makeFresh_aux tlc (adr + 1) n
-         end
-  end.
-
-Definition makeFresh (tlc : lc) := makeFresh_aux tlc 0 (lc_length tlc).
-
-Compute makeFresh [].
-Compute makeFresh [ (1, SKIP) ].
-Compute makeFresh [ (0, SKIP) ; (1, SKIP) ].
-Compute makeFresh [ (0, SKIP) ; (1, SKIP); (2, SKIP) ; (4, SKIP) ].
-Compute makeFresh [ (0, SKIP) ; (999, SKIP) ].
 
 (* ################################################################# *)
 
@@ -2178,37 +1857,6 @@ Proof.
 (* FILL IN HERE *)
 (** [] *)
 
-Module BreakImp.
-(** **** Exercise: 4 stars, advanced (break_imp)  *)
-(** Imperative languages like C and Java often include a [break] or
-    similar statement for interrupting the execution of loops. In this
-    exercise we consider how to add [break] to Imp.  First, we need to
-    enrich the language of commands with an additional case. *)
-
-Inductive com : Type :=
-  | CSkip : com
-  | CBreak : com               (* <-- new *)
-  | CAss : string -> aexp -> com
-  | CSeq : com -> com -> com
-  | CIf : bexp -> com -> com -> com
-  | CWhile : bexp -> com -> com.
-
-
-
-
-
-Notation "'SKIP'" :=
-  CSkip.
-Notation "'BREAK'" :=
-  CBreak.
-Notation "x '::=' a" :=
-  (CAss x a) (at level 60).
-Notation "c1 ;; c2" :=
-  (CSeq c1 c2) (at level 80, right associativity).
-Notation "'WHILE' b 'DO' c 'END'" :=
-  (CWhile b c) (at level 80, right associativity).
-Notation "'IFB' c1 'THEN' c2 'ELSE' c3 'FI'" :=
-  (CIf c1 c2 c3) (at level 80, right associativity).
 
 (** Next, we need to define the behavior of [BREAK].  Informally,
     whenever [BREAK] is executed in a sequence of commands, it stops
@@ -2239,12 +1887,6 @@ Notation "'IFB' c1 'THEN' c2 'ELSE' c3 'FI'" :=
     the evaluation relation that specifies whether evaluation of a
     command executes a [BREAK] statement: *)
 
-Inductive result : Type :=
-  | SContinue : result
-  | SBreak : result.
-
-Reserved Notation "c1 '/' st '\\' s '/' st'"
-                  (at level 40, st, s at level 39).
 
 (** Intuitively, [c / st \\ s / st'] means that, if [c] is started in
     state [st], then it terminates in state [st'] and either signals
@@ -2293,54 +1935,7 @@ Reserved Notation "c1 '/' st '\\' s '/' st'"
 (** Based on the above description, complete the definition of the
     [ceval] relation. *)
 
-Inductive ceval : com -> state -> result -> state -> Prop :=
-  | E_Skip : forall st,
-      CSkip / st \\ SContinue / st
-  (* FILL IN HERE *)
 
-  where "c1 '/' st '\\' s '/' st'" := (ceval c1 st s st').
-
-(** Now prove the following properties of your definition of [ceval]: *)
-
-Theorem break_ignore : forall c st st' s,
-     (BREAK;; c) / st \\ s / st' ->
-     st = st'.
-Proof.
-  (* FILL IN HERE *) Admitted.
-
-Theorem while_continue : forall b c st st' s,
-  (WHILE b DO c END) / st \\ s / st' ->
-  s = SContinue.
-Proof.
-  (* FILL IN HERE *) Admitted.
-
-Theorem while_stops_on_break : forall b c st st',
-  beval st b = true ->
-  c / st \\ SBreak / st' ->
-  (WHILE b DO c END) / st \\ SContinue / st'.
-Proof.
-  (* FILL IN HERE *) Admitted.
-(** [] *)
-
-(** **** Exercise: 3 stars, advanced, optional (while_break_true)  *)
-Theorem while_break_true : forall b c st st',
-  (WHILE b DO c END) / st \\ SContinue / st' ->
-  beval st' b = true ->
-  exists st'', c / st'' \\ SBreak / st'.
-Proof.
-(* FILL IN HERE *) Admitted.
-(** [] *)
-
-(** **** Exercise: 4 stars, advanced, optional (ceval_deterministic)  *)
-Theorem ceval_deterministic: forall (c:com) st st1 st2 s1 s2,
-     c / st \\ s1 / st1  ->
-     c / st \\ s2 / st2 ->
-     st1 = st2 /\ s1 = s2.
-Proof.
-  (* FILL IN HERE *) Admitted.
-
-(** [] *)
-End BreakImp.
 
 (** **** Exercise: 4 stars, optional (add_for_loop)  *)
 (** Add C-style [for] loops to the language of commands, update the
