@@ -112,7 +112,8 @@ Example WorldEaterTransEquiv : cequiv PreprocessWorldEater TransWorldEater.
     unfold cequiv.  intros.  split.
     
       (* (I) Original -> Transformed. *)
-      - unfold WorldEater, TransWorldEater.  unfold preprocess_program, transform_program.  intro H.
+      - unfold WorldEater, TransWorldEater.  unfold preprocess_program, transform_program.  
+        intro H.
 
       (* Break apart sequencing in hypothesis. *)
       inversion H; subst.  inversion H5; subst.  inversion H7; subst.  inversion H9; subst.
@@ -127,49 +128,67 @@ Example WorldEaterTransEquiv : cequiv PreprocessWorldEater TransWorldEater.
         (* (I.i Case 1: X = 0. *)
         + eapply E_Seq.  apply H2.  eapply E_WhileTrue.
             * unfold beval.  rewrite A0.  auto.
-            * eapply E_Switch.  auto.  rewrite A0.  simpl.  auto.  eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.
+            * eapply E_Switch.  auto.  rewrite A0.  simpl.  auto.  eapply E_Seq.
+              apply E_Skip.  apply E_Ass.  auto.
             * simpl.  eapply E_WhileTrue.
               -- unfold beval.  simpl.  auto.
-              -- eapply E_Switch.  auto.  simpl.  auto.  apply E_IfTrue.  assumption.  apply E_Ass.  auto.
+              -- eapply E_Switch.  auto.  simpl.  auto.  apply E_IfTrue.  assumption.
+                 apply E_Ass.  auto.
               -- eapply E_WhileTrue.
                  ++ auto.
-                 ++ eapply E_Switch.  auto.  simpl.  auto.  eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.
+                 ++ eapply E_Switch.  auto.  simpl.  auto.  eapply E_Seq.  apply E_Skip.
+                    apply E_Ass.  auto.
                  ++ simpl.  eapply E_WhileTrue.
                     ** auto.
-                    ** eapply E_Switch.  auto.  simpl.  auto.  eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.
+                    ** eapply E_Switch.  auto.  simpl.  auto.  eapply E_Seq.  apply E_Skip.
+                       apply E_Ass.  auto.
                     ** simpl.
-                       assert (sameState : st'0 & {swVar --> 1; swVar --> 2; swVar --> 4; swVar --> 5} = st').
-                       { apply ceval_deterministic with ((IFB X = 0 THEN SKIP ELSE X ::= 1 FI);; SKIP;; swVar ::= 5) st'0.  
+                       assert (sameState : st'0 & 
+                         {swVar --> 1; swVar --> 2; swVar --> 4; swVar --> 5} = st').
+                       { apply ceval_deterministic with 
+                         ((IFB X = 0 THEN SKIP ELSE X ::= 1 FI);; SKIP;; swVar ::= 5) st'0.
                              2: auto.  eapply E_Seq.  apply E_IfTrue.  auto.  apply E_Skip. 
-                                assert (sameState' : st'0 & {swVar --> 1; swVar --> 2; swVar --> 4; swVar --> 5} = st'0 & {swVar --> 5}).
-                                  { rewrite t_update_shadow.  rewrite t_update_shadow.  rewrite t_update_shadow.  auto. }
-                                rewrite sameState'.  eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.
-                                inversion H3.  subst.  auto. }
+                                assert (sameState' : st'0 & 
+                                        {swVar --> 1; swVar --> 2; swVar --> 4; swVar --> 5} 
+                                         = st'0 & {swVar --> 5}).
+                                  { rewrite t_update_shadow.  rewrite t_update_shadow.  
+                                    rewrite t_update_shadow.  auto. }
+                                rewrite sameState'.  eapply E_Seq.  apply E_Skip.
+                                apply E_Ass.  auto.  inversion H3.  subst.  auto. }
                        rewrite sameState.  eapply E_WhileFalse.
                        --- unfold beval.  rewrite A5.  auto.
 
          (* I.ii Case 2: X =/= 0 *)
          + eapply E_Seq.  apply H2.  eapply E_WhileTrue.
             * unfold beval.  rewrite A0.  auto.
-            * eapply E_Switch.  auto.  rewrite A0.  simpl.  auto.  eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.
+            * eapply E_Switch.  auto.  rewrite A0.  simpl.  auto.  eapply E_Seq.
+              apply E_Skip.  apply E_Ass.  auto.
             * simpl.  eapply E_WhileTrue.
               -- unfold beval.  simpl.  auto.
-              -- eapply E_Switch.  auto.  simpl.  auto.  apply E_IfFalse.  assumption.  apply E_Ass.  auto.
+              -- eapply E_Switch.  auto.  simpl.  auto.  apply E_IfFalse.  assumption.
+                 apply E_Ass.  auto.
               -- eapply E_WhileTrue.
                  ++ auto.
-                 ++ eapply E_Switch.  auto.  simpl.  auto.  eapply E_Seq.  apply E_Ass.  auto.  apply E_Ass.  auto.
+                 ++ eapply E_Switch.  auto.  simpl.  auto.  eapply E_Seq.  apply E_Ass.
+                    auto.  apply E_Ass.  auto.
                  ++ simpl.  eapply E_WhileTrue.
                     ** auto.
-                    ** eapply E_Switch.  auto.  simpl.  auto.  eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.
+                    ** eapply E_Switch.  auto.  simpl.  auto.  eapply E_Seq.
+                       apply E_Skip.  apply E_Ass.  auto.
                     ** simpl.
-                       assert (sameState : st'0 & {swVar --> 1; swVar --> 3; X --> 1; swVar --> 4; swVar --> 5} = st').
-                       { apply ceval_deterministic with ((IFB X = 0 THEN SKIP ELSE X ::= 1 FI);; SKIP;; swVar ::= 5) st'0.  
-                             2: auto.  eapply E_Seq.  apply E_IfFalse.  auto.  apply E_Ass.  auto.  simpl.
-                             eapply E_Seq.  apply E_Skip.
-                                assert (sameState' : st'0 & {swVar --> 1; swVar --> 3; X --> 1; swVar --> 4; swVar --> 5} = 
+                       assert (sameState : st'0 & 
+                               {swVar --> 1; swVar --> 3; X --> 1; swVar --> 4; swVar --> 5} = st').
+                       { apply ceval_deterministic with 
+                         ((IFB X = 0 THEN SKIP ELSE X ::= 1 FI);; SKIP;; swVar ::= 5) st'0.
+                             2: auto.  eapply E_Seq.  apply E_IfFalse.  auto. 
+                                apply E_Ass.  auto.  simpl.  eapply E_Seq.  apply E_Skip.
+                                assert (sameState' : 
+                                  st'0 & {swVar --> 1; swVar --> 3; X --> 1; swVar --> 4; swVar --> 5} =
                                   st'0 & {X --> 1; swVar --> 5}).
-                                  { rewrite t_update_shadow.  rewrite t_update_shadow.  rewrite t_update_comm.  rewrite t_update_shadow.
-                                    rewrite t_update_comm.  auto.  unfold not.  intro.  inversion H0.  unfold not.  intro.  inversion H0. }
+                                  { rewrite t_update_shadow.  rewrite t_update_shadow.
+                                    rewrite t_update_comm.  rewrite t_update_shadow.
+                                    rewrite t_update_comm.  auto.  unfold not.  intro.
+                                    inversion H0.  unfold not.  intro.  inversion H0. }
                                 rewrite sameState'.  apply E_Ass.  auto.
                                 inversion H3.  subst.  auto. }
                        rewrite sameState.  eapply E_WhileFalse.
@@ -195,22 +214,25 @@ Example WorldEaterTransEquiv : cequiv PreprocessWorldEater TransWorldEater.
                   (3, X ::= 1;; swVar ::= 4);
                   (4, SKIP;; swVar ::= 5)] END)) st.
               2: auto.
-              assert (sameState : st & {swVar --> 0; swVar --> 5} = st & {swVar --> 0 ; swVar --> 1 ; swVar --> 2 ; swVar --> 4 ; swVar --> 5}).
+              assert (sameState : st & {swVar --> 0; swVar --> 5} = 
+                st & {swVar --> 0 ; swVar --> 1 ; swVar --> 2 ; swVar --> 4 ; swVar --> 5}).
               { repeat (rewrite t_update_shadow).  auto. }
-              rewrite sameState.  apply E_Seq with (st & {swVar --> 0}).  apply E_Ass.  auto.
+              rewrite sameState.  apply E_Seq with (st & {swVar --> 0}).
+              apply E_Ass.  auto.
 
               (* While Loop *)
-              eapply E_WhileTrue.  auto.  apply E_Switch with 0 (SKIP;; swVar ::= 1).  auto.  auto.
-              eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.  simpl.
+              eapply E_WhileTrue.  auto.  apply E_Switch with 0 (SKIP;; swVar ::= 1).  
+              auto.  auto.  eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.  simpl.
 
-              eapply E_WhileTrue.  auto.  apply E_Switch with 1 (IFB X = 0 THEN swVar ::= 2 ELSE swVar ::= 3 FI).  auto.  auto.
-              apply E_IfTrue.  auto.  apply E_Ass.  auto.  simpl.
+              eapply E_WhileTrue.  auto.  
+              apply E_Switch with 1 (IFB X = 0 THEN swVar ::= 2 ELSE swVar ::= 3 FI).
+              auto.  auto.  apply E_IfTrue.  auto.  apply E_Ass.  auto.  simpl.
 
-              eapply E_WhileTrue.  auto.  apply E_Switch with 2 (SKIP;; swVar ::= 4).  auto.  auto.
-              eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.  simpl.
+              eapply E_WhileTrue.  auto.  apply E_Switch with 2 (SKIP;; swVar ::= 4).
+              auto.  auto.  eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.  simpl.
 
-              eapply E_WhileTrue.  auto.  apply E_Switch with 4 (SKIP;; swVar ::= 5).  auto.  auto.
-              eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.  simpl.
+              eapply E_WhileTrue.  auto.  apply E_Switch with 4 (SKIP;; swVar ::= 5).
+              auto.  auto.  eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.  simpl.
 
               eapply E_WhileFalse.  auto. }
 
@@ -230,25 +252,30 @@ Example WorldEaterTransEquiv : cequiv PreprocessWorldEater TransWorldEater.
                   (3, X ::= 1;; swVar ::= 4);
                   (4, SKIP;; swVar ::= 5)] END)) st.
               2: auto.
-              assert (sameState : st & {swVar --> 0; X --> 1 ; swVar --> 5} = st & {swVar --> 0 ; swVar --> 1 ; swVar --> 3 ; X --> 1 ; swVar --> 4 ; swVar --> 5}).
-              { repeat (rewrite t_update_shadow).  rewrite t_update_comm.  rewrite t_update_shadow.  symmetry.  rewrite t_update_comm.
-                rewrite t_update_shadow.  auto.  intro H0; inversion H0.  intro H0; inversion H0. }
+              assert (sameState : st & {swVar --> 0; X --> 1 ; swVar --> 5} = 
+                st & {swVar --> 0 ; swVar --> 1 ; swVar --> 3 ; X --> 1 ; swVar --> 4 ; swVar --> 5}).
+              { repeat (rewrite t_update_shadow).  rewrite t_update_comm.
+                rewrite t_update_shadow.  symmetry.  rewrite t_update_comm.
+                rewrite t_update_shadow.  auto.  intro H0; inversion H0.
+                intro H0; inversion H0. }
               rewrite sameState.
 
               apply E_Seq with (st & {swVar --> 0}).  apply E_Ass.  auto.
 
               (* While Loop *)
-              eapply E_WhileTrue.  auto.  apply E_Switch with 0 (SKIP;; swVar ::= 1).  auto.  auto.
-              eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.  simpl.
+              eapply E_WhileTrue.  auto.  apply E_Switch with 0 (SKIP;; swVar ::= 1).
+              auto.  auto.  eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.  simpl.
 
-              eapply E_WhileTrue.  auto.  apply E_Switch with 1 (IFB X = 0 THEN swVar ::= 2 ELSE swVar ::= 3 FI).  auto.  auto.
-              apply E_IfFalse.  auto.  apply E_Ass.  auto.  simpl.
+              eapply E_WhileTrue.  auto.
+              apply E_Switch with 1 (IFB X = 0 THEN swVar ::= 2 ELSE swVar ::= 3 FI).
+              auto.  auto.  apply E_IfFalse.  auto.  apply E_Ass.  auto.  simpl.
 
-              eapply E_WhileTrue.  auto.  apply E_Switch with 3 (X ::= 1 ;; swVar ::= 4).  auto.  auto.
+              eapply E_WhileTrue.  auto.
+              apply E_Switch with 3 (X ::= 1 ;; swVar ::= 4).  auto.  auto.
               eapply E_Seq.  apply E_Ass.  auto.  apply E_Ass.  auto.  simpl.
 
-              eapply E_WhileTrue.  auto.  apply E_Switch with 4 (SKIP;; swVar ::= 5).  auto.  auto.
-              eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.  simpl.
+              eapply E_WhileTrue.  auto.  apply E_Switch with 4 (SKIP;; swVar ::= 5).
+              auto.  auto.  eapply E_Seq.  apply E_Skip.  apply E_Ass.  auto.  simpl.
 
               eapply E_WhileFalse.  auto. }
 
