@@ -14,6 +14,8 @@ Require Import SF_Equiv.
 Require Import OBFS_opaque_predicate.
 Require Import SF_Imp_Switch.
 
+Print option.
+
 
 (* ----------------------------------------------------------------------------------------------------------------- *)
 
@@ -72,6 +74,7 @@ Definition PreprocessWorldEater := preprocess_program SKIP (X = 0) SKIP (X ::= 1
 Definition TransWorldEater := transform_program SKIP (X = 0) SKIP (X ::= 1) SKIP.
 
 Compute PreprocessWorldEater.
+
 Compute TransWorldEater.
 
 Definition cequiv (c1 c2 : com) : Prop :=
@@ -292,12 +295,6 @@ Example WorldEaterTransEquiv : cequiv PreprocessWorldEater TransWorldEater.
    variable X, this has no impact on the rest of the state when evaluating this program.
 
    We also have to this invariance for the boolean guard condition - IE, the IF statement's evaluation also doesn't depend on swVar.
-
-   One more necessary assumption: since our LoadDict doesn't look inside if and while branches, the transformed program will always have an
-   empty lc.  So assume the header and footer don't have any addresses or GoTos either so that loadDict of the original program is also empty lc.
-
-   This isn't desirable in the long run since we'll want to be able to combine transformations, but for now we're black boxing this If-flattening
-   transformation, which doesn't deal with GoTo and Jumps at all.
 *)
 
 Definition eval_invariant c X :=

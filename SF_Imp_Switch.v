@@ -1113,8 +1113,6 @@ Inductive com : Type :=
   | CWhile : bexp -> com -> com
   | CSwitch : string -> list (address * com) -> com. (** <-- New! **)
 
-
-
 (** labeled commands : lc *)
 Definition lc := list (address * com).
 
@@ -1123,8 +1121,8 @@ Definition empty_lc : lc := [].
 Fixpoint lc_lookup (tlc : lc) (adr : address) : option com :=
   match tlc with
   | [] => None
-  | (adr', c')::tlc => if (beq_nat adr adr') then Some c'
-                      else lc_lookup tlc adr
+  | (adr', c')::tail => if (beq_nat adr adr') then Some c'
+                        else lc_lookup tail adr
   end.
 
 Fixpoint lc_update (adr:address) (c:com) (tlc:lc): lc :=
@@ -1134,8 +1132,6 @@ Fixpoint lc_update (adr:address) (c:com) (tlc:lc): lc :=
   end.
 
 Compute (lc_update 2 CSkip (lc_update 1 CSkip empty_lc)).
-
-
 
 Example test_lc_update:
   lc_lookup (lc_update 1 CSkip empty_lc) 1 
