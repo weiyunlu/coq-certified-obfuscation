@@ -61,15 +61,33 @@ Definition transform_program header cond c1 c2 footer : com :=
 
 (* Same WorldEater example from before *)
 
-Definition WorldEater := preprocess_program SKIP (X = 0) SKIP (X ::= 1) SKIP.
+Definition WorldEater : com :=
+  IFB (X = 0) THEN
+    SKIP
+  ELSE
+    X ::= 1
+  FI.
+
+Definition PreprocessWorldEater := preprocess_program SKIP (X = 0) SKIP (X ::= 1) SKIP.
 Definition TransWorldEater := transform_program SKIP (X = 0) SKIP (X ::= 1) SKIP.
 
-Compute WorldEater.
+Compute PreprocessWorldEater.
 Compute TransWorldEater.
 
 Definition cequiv (c1 c2 : com) : Prop :=
   forall (st st' : state),
     (c1 / st \\ st') <-> (c2 / st \\ st').
+
+(* Lemma: updating a variable twice is same as just updating the second value. *)
+
+Lemma t_update_shadow : forall A (m: total_map A) v1 v2 x,
+    m & {x --> v1 ; x --> v2} = m & {x --> v2}.
+Proof.
+    intros A m v1 v2 x.  apply functional_extensionality.
+    intro x0.  unfold t_update.  destruct (beq_string x x0) eqn:Heq.
+    - reflexivity.
+    - reflexivity.
+  Qed.
 
 (* Lemma we need: updating two different variables in a different order is the same thing. *)
 
@@ -79,7 +97,8 @@ Lemma t_update_comm : forall A (m: total_map A) v1 v2 x y,
     intros.  apply functional_extensionality.  intros.
     unfold t_update.  destruct (beq_string y x0) eqn:Heq.
     - destruct (beq_string x x0) eqn:Heq2.
-      + rewrite beq_string_true_iff in *.  rewrite <- Heq2 in Heq.  symmetry in Heq.  apply H in Heq.  inversion Heq.
+      + rewrite beq_string_true_iff in *.  rewrite <- Heq2 in Heq.
+        symmetry in Heq.  apply H in Heq.  inversion Heq.
       + auto.
     - destruct (beq_string x x0) eqn:Heq2.
       + auto.
@@ -88,7 +107,7 @@ Lemma t_update_comm : forall A (m: total_map A) v1 v2 x y,
 
 (* Bona fide command equivalence of the example program and its transformed state, not just Hoare logic! *)
 
-Example WorldEaterTransEquiv : cequiv WorldEater TransWorldEater.
+Example WorldEaterTransEquiv : cequiv PreprocessWorldEater TransWorldEater.
   Proof.
     unfold cequiv.  intros.  split.
     

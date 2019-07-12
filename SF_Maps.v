@@ -254,6 +254,7 @@ Lemma t_update_shadow : forall A (m: total_map A) v1 v2 x,
 Proof.
   (* FILL IN HERE *) Admitted.
 (** [] *)
+(** [] *)
 
 (** For the final two lemmas about total maps, it's convenient to use
     the reflection idioms introduced in chapter [IndProp].  We begin
