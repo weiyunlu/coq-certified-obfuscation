@@ -1502,7 +1502,7 @@ Proof.
   intros c st st1 st2 E1 E2.
   generalize dependent st2.
   induction E1;
-           intros st2 E2; inversion E2; subst; 
+           intros st2 E2; inversion E2; subst;
             try (rewrite H in H2; inversion H2); try (rewrite H in H1; inversion H1);
             try (rewrite H in H3; inversion H3); try (rewrite H in H4; inversion H4);
             try (rewrite H in H5; inversion H5); try (rewrite H in H6; inversion H6).

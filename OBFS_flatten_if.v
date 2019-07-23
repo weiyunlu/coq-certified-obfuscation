@@ -317,7 +317,6 @@ Lemma eval_inv_imp_eval_ind : forall c X n st st',
   Qed. 
 
 
-
 Theorem AllTransEquiv : forall header cond c1 c2 footer, 
   eval_invariant c1 swVar -> eval_invariant c2 swVar -> 
   eval_invariant footer swVar -> beval_invariant cond swVar ->
